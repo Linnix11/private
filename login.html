@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Restaurant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="auth-styles.css">
+    <link rel="stylesheet" href="nav-styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="logo">RestaurantApp</a>
+        <div class="nav-buttons" id="navButtons"></div>
+    </nav>
+
+    <div class="auth-container">
+        <form id="loginForm" class="auth-form">
+            <h2>Connexion</h2>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" id="submitButton">Se connecter</button>
+            <p class="auth-link">Pas encore de compte ? <a href="register.html">S'inscrire</a></p>
+            <div id="messageBox" class="message-box"></div>
+        </form>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        
+        if (isAuthenticated()) {
+            window.location.href = 'index.html';
+        }
+
+        const loginForm = document.getElementById('loginForm');
+        const submitButton = document.getElementById('submitButton');
+        const messageBox = document.getElementById('messageBox');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            submitButton.classList.add('loading');
+
+            const formData = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            try {
+                const response = await fetch('http://localhost:3000/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    messageBox.textContent = "Connexion réussie !";
+                    messageBox.className = 'message-box success';
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1500);
+                } else {
+                    throw new Error(data.message || 'Erreur de connexion');
+                }
+            } catch (error) {
+                messageBox.textContent = error.message || "Erreur de connexion au serveur";
+                messageBox.className = 'message-box error';
+            } finally {
+                submitButton.classList.remove('loading');
+            }
+        });
+
+        
+        document.addEventListener('DOMContentLoaded', updateNavigation);
+    </script>
+</body>
+</html>

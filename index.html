@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notre Menu - Restaurant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="index.html" class="logo">Restaurant</a>
+        <div id="navButtons">
+            <a href="login.html" class="admin-login" id="loginBtn">Administration</a>
+        </div>
+    </nav>
+
+    <header class="page-header">
+        <div class="container">
+            <h1 class="page-title">Notre Menu</h1>
+            <p class="page-subtitle">Découvrez nos délicieuses spécialités</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="adminPanel" class="admin-panel" style="display: none;">
+            <button onclick="window.location.href='add-item.html'" class="add-button">
+                + Ajouter un article
+            </button>
+        </div>
+        <div id="loading">
+            <div class="loading-spinner"></div>
+            <p>Chargement du menu...</p>
+        </div>
+        <div id="menu" class="items-grid"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+        let isAdmin = false;
+
+        
+        function checkAdminStatus() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            isAdmin = !!user;
+            updateUI();
+        }
+
+        function updateUI() {
+            const adminPanel = document.getElementById('adminPanel');
+            const loginBtn = document.getElementById('loginBtn');
+            const navButtons = document.getElementById('navButtons');
+
+            if (isAdmin) {
+                adminPanel.style.display = 'block';
+                navButtons.innerHTML = `
+                    <span class="admin-badge">Mode Administration</span>
+                    <button onclick="logout()" class="logout-button">Déconnexion</button>
+                `;
+            } else {
+                adminPanel.style.display = 'none';
+                navButtons.innerHTML = `
+                    <a href="login.html" class="admin-login">Administration</a>
+                `;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('user');
+            isAdmin = false;
+            updateUI();
+            fetchItems(); 
+        }
+
+        async function fetchItems() {
+            const loadingElement = document.getElementById('loading');
+            const menuContainer = document.getElementById('menu');
+
+            try {
+                const response = await fetch(`${API_URL}/items`);
+                
+                if (!response.ok) {
+                    throw new Error('Erreur lors du chargement des données');
+                }
+
+                const items = await response.json();
+                loadingElement.style.display = 'none';
+
+                if (!items || items.length === 0) {
+                    menuContainer.innerHTML = `
+                        <div class="empty-state">
+                            <p>Aucun plat disponible pour le moment</p>
+                        </div>`;
+                    return;
+                }
+
+                displayItems(items);
+            } catch (error) {
+                loadingElement.innerHTML = `
+                    <div class="error-message">
+                        Erreur lors du chargement du menu. Veuillez réessayer plus tard.
+                    </div>`;
+                console.error('Erreur:', error);
+            }
+        }
+
+        function displayItems(items) {
+            const menuContainer = document.getElementById('menu');
+            menuContainer.innerHTML = '';
+
+            items.forEach((item, index) => {
+                const itemCard = document.createElement('div');
+                itemCard.className = 'item-card';
+                itemCard.style.setProperty('--i', index + 1);
+
+                const stockStatus = getStockStatus(item.quantity);
+                const adminControls = isAdmin ? `
+                    <div class="admin-controls">
+                        <button onclick="editQuantity(${item.id}, ${item.quantity})" class="edit-btn">
+                            Modifier quantité
+                        </button>
+                        <button onclick="deleteItem(${item.id}, this)" class="delete-btn">
+                            Supprimer
+                        </button>
+                    </div>
+                ` : '';
+
+                itemCard.innerHTML = `
+                    <div class="item-content">
+                        <div class="item-header">
+                            <div class="item-name">${item.name || 'Sans nom'}</div>
+                            <div class="stock-status ${stockStatus.class}">${stockStatus.text}</div>
+                        </div>
+                        <div class="item-description">${item.description || 'Aucune description disponible'}</div>
+                        <div class="item-footer">
+                            <div class="price-tag">${item.price ? item.price.toFixed(2) : 'N/A'}</div>
+                            <div class="quantity-badge">
+                                Quantité: <span>${item.quantity || 0}</span>
+                            </div>
+                        </div>
+                        ${adminControls}
+                    </div>
+                `;
+                menuContainer.appendChild(itemCard);
+            });
+        }
+
+        async function editQuantity(itemId, currentQuantity) {
+            if (!isAdmin) return;
+
+            const newQuantity = prompt('Nouvelle quantité:', currentQuantity);
+            if (newQuantity === null || isNaN(newQuantity)) return;
+
+            try {
+                const response = await fetch(`${API_URL}/items/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ quantity: parseInt(newQuantity) })
+                });
+
+                if (response.ok) {
+                    fetchItems(); // Refresh //
+                } else {
+                    throw new Error('Erreur lors de la mise à jour');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur lors de la mise à jour de la quantité');
+            }
+        }
+
+        async function deleteItem(itemId, button) {
+            if (!isAdmin) return;
+            
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/items/${itemId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    const itemCard = button.closest('.item-card');
+                    itemCard.classList.add('removing');
+                    setTimeout(() => {
+                        itemCard.remove();
+                    }, 300);
+                } else {
+                    throw new Error('Erreur lors de la suppression');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur lors de la suppression de l\'article');
+            }
+        }
+
+        function getStockStatus(quantity) {
+            if (quantity === 0) {
+                return { class: 'out-of-stock', text: 'Rupture de stock' };
+            } else if (quantity < 5) {
+                return { class: 'low-stock', text: 'Stock limité' };
+            }
+            return { class: 'in-stock', text: 'En stock' };
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAdminStatus();
+            fetchItems();
+        });
+    </script>
+</body>
+</html>
